@@ -14,6 +14,7 @@ export class RatesService {
   private readonly logger = new Logger(RatesService.name);
   private priceBuffer: Map<string, PriceData[]> = new Map();
   private gateway: any = null; // Will be set by setGateway to avoid circular dependency
+  private lastBroadcastTime: Map<string, number> = new Map(); // Throttle broadcasts
 
   constructor(
     @InjectRepository(HourlyRate)
@@ -29,35 +30,30 @@ export class RatesService {
 
   /**
    * Store incoming price data in memory buffer
-   * Calculates and broadcasts initial average after first 5 trades OR after 30 seconds
+   * Broadcasts average starting from first trade
    */
   addPrice(symbol: string, price: number, timestamp: number) {
     if (!this.priceBuffer.has(symbol)) {
       this.priceBuffer.set(symbol, []);
-      
-      // Start 30-second timer for fallback calculation
-      const timer = setTimeout(() => {
-        this.calculateInitialAverage(symbol);
-      }, 30000);
-      this.initialTimers.set(symbol, timer);
     }
     
     const buffer = this.priceBuffer.get(symbol)!;
     buffer.push({ price, timestamp });
 
-    // Calculate and broadcast initial average after 5 trades (if not already done)
-    if (buffer.length === 5 && !this.initialAverageCalculated.has(symbol)) {
-      this.calculateInitialAverage(symbol);
-    }
+    // Broadcast current average immediately (starting from first trade)
+    this.broadcastCurrentAverage(symbol);
   }
 
   /**
-   * Calculate initial average from first trades (for immediate UX feedback)
-   * Only calculates once per symbol
+   * Broadcast current average to frontend
+   * Throttled to max 1 per 2 seconds per symbol to avoid overwhelming frontend
    */
-  private calculateInitialAverage(symbol: string) {
-    // Skip if already calculated
-    if (this.initialAverageCalculated.has(symbol)) return;
+  private broadcastCurrentAverage(symbol: string) {
+    const now = Date.now();
+    const lastBroadcast = this.lastBroadcastTime.get(symbol) || 0;
+    
+    // Throttle: only broadcast if more than 2 seconds since last broadcast
+    if (now - lastBroadcast < 2000) return;
 
     const prices = this.priceBuffer.get(symbol);
     if (!prices || prices.length === 0) return;
@@ -65,19 +61,9 @@ export class RatesService {
     const sum = prices.reduce((acc, p) => acc + p.price, 0);
     const average = sum / prices.length;
 
-    this.logger.log(
-      `Initial average for ${symbol}: ${average.toFixed(8)} (${prices.length} samples)`,
-    );
+    this.lastBroadcastTime.set(symbol, now);
 
-    // Mark as calculated and clear timer
-    this.initialAverageCalculated.add(symbol);
-    const timer = this.initialTimers.get(symbol);
-    if (timer) {
-      clearTimeout(timer);
-      this.initialTimers.delete(symbol);
-    }
-
-    // Broadcast to frontend immediately
+    // Broadcast to frontend
     if (this.gateway) {
       this.gateway.broadcastInitialAverage(symbol, average);
     }
