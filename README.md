@@ -35,14 +35,18 @@ cd able-crypto
 
 # Create .env file with your Finnhub API key
 cp env.example .env
-# Edit .env and add your FINNHUB_API_KEY
+# Edit .env and add your FINNHUB_API_KEY (provided separately)
 
-# OR set as environment variable
-export FINNHUB_API_KEY=your_api_key_here
+# Generate package-lock.json (first time if you dont have package-lock.json)
+npm install
 
 # Start all services
 docker-compose up --build
 ```
+
+**Important Notes:**
+- The Finnhub API key must be added to `.env` file before running
+- Run `npm install` at least once to generate `package-lock.json` before building Docker images
 
 The application will be available at:
 - **Frontend**: http://localhost:5173
