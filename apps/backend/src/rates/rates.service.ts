@@ -14,7 +14,6 @@ export class RatesService {
   private readonly logger = new Logger(RatesService.name);
   private priceBuffer: Map<string, PriceData[]> = new Map();
   private gateway: any = null; // Will be set by setGateway to avoid circular dependency
-  private lastBroadcastTime: Map<string, number> = new Map(); // Throttle broadcasts
 
   constructor(
     @InjectRepository(HourlyRate)
@@ -30,38 +29,34 @@ export class RatesService {
 
   /**
    * Store incoming price data in memory buffer
-   * Broadcasts average starting from first trade
+   * Broadcasts average only on first trade, then waits for hourly cron
    */
   addPrice(symbol: string, price: number, timestamp: number) {
-    if (!this.priceBuffer.has(symbol)) {
+    const isFirstTrade = !this.priceBuffer.has(symbol);
+    
+    if (isFirstTrade) {
       this.priceBuffer.set(symbol, []);
     }
     
     const buffer = this.priceBuffer.get(symbol)!;
     buffer.push({ price, timestamp });
 
-    // Broadcast current average immediately (starting from first trade)
-    this.broadcastCurrentAverage(symbol);
+    // Broadcast average only on first trade
+    if (isFirstTrade) {
+      this.broadcastCurrentAverage(symbol);
+    }
   }
 
   /**
    * Broadcast current average to frontend
-   * Throttled to max 1 per 2 seconds per symbol to avoid overwhelming frontend
+   * Called only on first trade and then hourly
    */
   private broadcastCurrentAverage(symbol: string) {
-    const now = Date.now();
-    const lastBroadcast = this.lastBroadcastTime.get(symbol) || 0;
-    
-    // Throttle: only broadcast if more than 2 seconds since last broadcast
-    if (now - lastBroadcast < 2000) return;
-
     const prices = this.priceBuffer.get(symbol);
     if (!prices || prices.length === 0) return;
 
     const sum = prices.reduce((acc, p) => acc + p.price, 0);
     const average = sum / prices.length;
-
-    this.lastBroadcastTime.set(symbol, now);
 
     // Broadcast to frontend
     if (this.gateway) {
