@@ -14,6 +14,8 @@ export class RatesService {
   private readonly logger = new Logger(RatesService.name);
   private priceBuffer: Map<string, PriceData[]> = new Map();
   private gateway: any = null; // Will be set by setGateway to avoid circular dependency
+  private initialAverageSent: Set<string> = new Set(); // Track which symbols already sent initial average
+  private initialTimers: Map<string, NodeJS.Timeout> = new Map(); // Timers for initial average calculation
 
   constructor(
     @InjectRepository(HourlyRate)
@@ -29,27 +31,34 @@ export class RatesService {
 
   /**
    * Store incoming price data in memory buffer
-   * Broadcasts average only on first trade, then waits for hourly cron
+   * Schedules initial average calculation after first batch of trades
    */
   addPrice(symbol: string, price: number, timestamp: number) {
     const isFirstTrade = !this.priceBuffer.has(symbol);
     
     if (isFirstTrade) {
       this.priceBuffer.set(symbol, []);
+      
+      // Schedule initial average calculation after 2 seconds
+      // This allows collecting the first batch of trades (1-N)
+      const timer = setTimeout(() => {
+        if (!this.initialAverageSent.has(symbol)) {
+          this.broadcastCurrentAverage(symbol);
+          this.initialAverageSent.add(symbol);
+          this.initialTimers.delete(symbol);
+        }
+      }, 2000);
+      
+      this.initialTimers.set(symbol, timer);
     }
     
     const buffer = this.priceBuffer.get(symbol)!;
     buffer.push({ price, timestamp });
-
-    // Broadcast average only on first trade
-    if (isFirstTrade) {
-      this.broadcastCurrentAverage(symbol);
-    }
   }
 
   /**
    * Broadcast current average to frontend
-   * Called only on first trade and then hourly
+   * Called after initial batch and then hourly
    */
   private broadcastCurrentAverage(symbol: string) {
     const prices = this.priceBuffer.get(symbol);
@@ -57,6 +66,10 @@ export class RatesService {
 
     const sum = prices.reduce((acc, p) => acc + p.price, 0);
     const average = sum / prices.length;
+
+    this.logger.log(
+      `Broadcasting average for ${symbol}: ${average.toFixed(8)} (${prices.length} samples)`,
+    );
 
     // Broadcast to frontend
     if (this.gateway) {
