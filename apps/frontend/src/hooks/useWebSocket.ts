@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback } from 'react';
 import { io, Socket } from 'socket.io-client';
-import type { ConnectionStatus, PriceUpdate, HourlyAverage, InitialData } from '../types/crypto';
+import type { ConnectionStatus } from '../types/crypto';
 
 interface UseWebSocketReturn {
   socket: Socket | null;
