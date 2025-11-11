@@ -25,10 +25,12 @@ FROM node:18-alpine
 
 WORKDIR /app
 
-# Copy package files
-COPY --from=builder /app/apps/backend/package*.json ./
+# Copy package files and lock file
+COPY --from=builder /app/package*.json ./
+COPY --from=builder /app/apps/backend/package*.json ./apps/backend/
 
 # Install production dependencies only
+WORKDIR /app/apps/backend
 RUN npm ci --omit=dev
 
 # Copy built application
