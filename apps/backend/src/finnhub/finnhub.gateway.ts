@@ -8,19 +8,8 @@ import {
 import { Logger } from '@nestjs/common';
 import { Server, Socket } from 'socket.io';
 import { throttle } from 'lodash';
+import { PriceUpdate, HourlyAverage } from '@able-crypto/shared';
 import { RatesService } from '../rates/rates.service';
-
-interface CryptoPriceUpdate {
-  symbol: string;
-  price: number;
-  timestamp: number;
-}
-
-interface HourlyAverageData {
-  symbol: string;
-  averagePrice: number;
-  hour: string;
-}
 
 @WebSocketGateway({
   cors: {
@@ -38,7 +27,7 @@ export class FinnhubGateway
   private connectedClients = 0;
 
   // Throttled broadcast functions (max 1 per second per symbol)
-  private throttledBroadcast: Map<string, (data: CryptoPriceUpdate) => void> = new Map();
+  private throttledBroadcast: Map<string, (data: PriceUpdate) => void> = new Map();
 
   constructor(private readonly ratesService: RatesService) {}
 
@@ -50,7 +39,7 @@ export class FinnhubGateway
     symbols.forEach((symbol) => {
       this.throttledBroadcast.set(
         symbol,
-        throttle((data: CryptoPriceUpdate) => {
+        throttle((data: PriceUpdate) => {
           this.server.emit('price:update', data);
         }, 1000),
       );
@@ -93,7 +82,7 @@ export class FinnhubGateway
       
       if (averages.length > 0) {
         const latest = averages[0];
-        const data: HourlyAverageData = {
+        const data: HourlyAverage = {
           symbol: latest.symbol,
           averagePrice: Number(latest.averagePrice),
           hour: latest.hour.toISOString(),
@@ -118,7 +107,7 @@ export class FinnhubGateway
         const averages = await this.ratesService.getRecentAverages(symbol, 24);
         
         if (averages.length > 0) {
-          const data = averages.map((avg) => ({
+          const data: HourlyAverage[] = averages.map((avg) => ({
             symbol: avg.symbol,
             averagePrice: Number(avg.averagePrice),
             hour: avg.hour.toISOString(),
