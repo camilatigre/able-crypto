@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, Inject, forwardRef } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, LessThan } from 'typeorm';
 import { Cron } from '@nestjs/schedule';
@@ -13,11 +13,19 @@ interface PriceData {
 export class RatesService {
   private readonly logger = new Logger(RatesService.name);
   private priceBuffer: Map<string, PriceData[]> = new Map();
+  private gateway: any = null; // Will be set by setGateway to avoid circular dependency
 
   constructor(
     @InjectRepository(HourlyRate)
     private readonly ratesRepository: Repository<HourlyRate>,
   ) {}
+
+  /**
+   * Set gateway reference (called from FinnhubModule)
+   */
+  setGateway(gateway: any) {
+    this.gateway = gateway;
+  }
 
   /**
    * Store incoming price data in memory buffer
@@ -57,6 +65,11 @@ export class RatesService {
         this.logger.log(
           `Saved hourly average for ${symbol}: ${average.toFixed(8)} (${prices.length} samples)`,
         );
+
+        // Broadcast hourly average to frontend clients
+        if (this.gateway) {
+          await this.gateway.broadcastHourlyAverage(symbol);
+        }
       } catch (error) {
         this.logger.error(`Failed to save hourly average for ${symbol}:`, error.message);
       }

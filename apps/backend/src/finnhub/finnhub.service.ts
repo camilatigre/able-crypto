@@ -1,7 +1,8 @@
-import { Injectable, Logger, OnModuleInit, OnModuleDestroy } from '@nestjs/common';
+import { Injectable, Logger, OnModuleInit, OnModuleDestroy, Inject, forwardRef } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import * as WebSocket from 'ws';
 import { RatesService } from '../rates/rates.service';
+import { FinnhubGateway } from './finnhub.gateway';
 
 interface FinnhubTradeRaw {
   s: string; // symbol
@@ -36,6 +37,8 @@ export class FinnhubService implements OnModuleInit, OnModuleDestroy {
   constructor(
     private readonly configService: ConfigService,
     private readonly ratesService: RatesService,
+    @Inject(forwardRef(() => FinnhubGateway))
+    private readonly gateway: FinnhubGateway,
   ) {}
 
   onModuleInit() {
@@ -112,6 +115,9 @@ export class FinnhubService implements OnModuleInit, OnModuleDestroy {
           
           // Pass to RatesService to add to buffer
           this.ratesService.addPrice(trade.symbol, trade.price, trade.timestamp);
+          
+          // Broadcast to connected frontend clients (throttled)
+          this.gateway.broadcastPriceUpdate(trade.symbol, trade.price, trade.timestamp);
         });
       }
     } catch (error) {
