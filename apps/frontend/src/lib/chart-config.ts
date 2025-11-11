@@ -20,7 +20,7 @@ export const getChartOptions = (isPositive: boolean): ChartOptions<'line'> => ({
       padding: 12,
       displayColors: false,
       callbacks: {
-        label: (context) => `Price: $${context.parsed.y.toFixed(2)}`,
+        label: (context) => `Price: $${context.parsed.y?.toFixed(2) || '0.00'}`,
       },
     },
   },

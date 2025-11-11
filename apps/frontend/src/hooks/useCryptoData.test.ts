@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect } from 'vitest';
 import { renderHook, act } from '@testing-library/react';
 import { useCryptoData } from './useCryptoData';
 import { CRYPTO_SYMBOLS } from '@able-crypto/shared';
