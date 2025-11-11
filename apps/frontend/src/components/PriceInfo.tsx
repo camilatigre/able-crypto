@@ -28,9 +28,15 @@ export const PriceInfo = ({
         <span className="text-muted-foreground text-sm font-sans">
           Hourly Average
         </span>
-        <span className="text-lg font-sans font-medium text-foreground">
-          ${formatPrice(hourlyAverage, decimals)}
-        </span>
+        {hourlyAverage > 0 ? (
+          <span className="text-lg font-sans font-medium text-foreground">
+            ${formatPrice(hourlyAverage, decimals)}
+          </span>
+        ) : (
+          <span className="text-xs font-sans text-muted-foreground italic">
+            Calculating first average...
+          </span>
+        )}
       </div>
       
       <div className="text-xs text-muted-foreground font-sans pt-1">

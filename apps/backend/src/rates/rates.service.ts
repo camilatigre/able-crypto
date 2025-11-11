@@ -29,25 +29,36 @@ export class RatesService {
 
   /**
    * Store incoming price data in memory buffer
-   * Calculates and broadcasts initial average after first 10 trades
+   * Calculates and broadcasts initial average after first 5 trades OR after 30 seconds
    */
   addPrice(symbol: string, price: number, timestamp: number) {
     if (!this.priceBuffer.has(symbol)) {
       this.priceBuffer.set(symbol, []);
+      
+      // Start 30-second timer for fallback calculation
+      const timer = setTimeout(() => {
+        this.calculateInitialAverage(symbol);
+      }, 30000);
+      this.initialTimers.set(symbol, timer);
     }
+    
     const buffer = this.priceBuffer.get(symbol)!;
     buffer.push({ price, timestamp });
 
-    // Calculate and broadcast initial average after 10 trades
-    if (buffer.length === 10) {
+    // Calculate and broadcast initial average after 5 trades (if not already done)
+    if (buffer.length === 5 && !this.initialAverageCalculated.has(symbol)) {
       this.calculateInitialAverage(symbol);
     }
   }
 
   /**
    * Calculate initial average from first trades (for immediate UX feedback)
+   * Only calculates once per symbol
    */
   private calculateInitialAverage(symbol: string) {
+    // Skip if already calculated
+    if (this.initialAverageCalculated.has(symbol)) return;
+
     const prices = this.priceBuffer.get(symbol);
     if (!prices || prices.length === 0) return;
 
@@ -57,6 +68,14 @@ export class RatesService {
     this.logger.log(
       `Initial average for ${symbol}: ${average.toFixed(8)} (${prices.length} samples)`,
     );
+
+    // Mark as calculated and clear timer
+    this.initialAverageCalculated.add(symbol);
+    const timer = this.initialTimers.get(symbol);
+    if (timer) {
+      clearTimeout(timer);
+      this.initialTimers.delete(symbol);
+    }
 
     // Broadcast to frontend immediately
     if (this.gateway) {
