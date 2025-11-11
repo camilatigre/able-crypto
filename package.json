@@ -2,6 +2,7 @@
   "name": "able-crypto",
   "version": "1.0.0",
   "private": true,
+  "description": "Real-time cryptocurrency dashboard with live exchange rates",
   "workspaces": [
     "apps/*",
     "packages/*"
@@ -15,7 +16,9 @@
     "build:frontend": "cd apps/frontend && npm run build",
     "docker:up": "docker-compose up --build",
     "docker:down": "docker-compose down",
-    "test": "npm run test --workspaces"
+    "test": "npm run test:backend && npm run test:frontend",
+    "test:backend": "cd apps/backend && npm run test",
+    "test:frontend": "cd apps/frontend && npm run test"
   },
   "devDependencies": {
     "concurrently": "^8.2.2"

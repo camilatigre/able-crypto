@@ -3,7 +3,7 @@ version: '3.8'
 services:
   postgres:
     image: postgres:15-alpine
-    container_name: able-crypto-postgres
+    container_name: crypto-postgres
     environment:
       POSTGRES_DB: crypto_dashboard
       POSTGRES_USER: postgres
@@ -11,20 +11,20 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data
     ports:
-      - '5432:5432'
+      - "5432:5432"
     healthcheck:
-      test: ['CMD-SHELL', 'pg_isready -U postgres']
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
       interval: 5s
       timeout: 5s
       retries: 5
     networks:
-      - able-crypto-network
+      - crypto-network
 
   backend:
     build:
       context: .
       dockerfile: apps/backend/Dockerfile
-    container_name: able-crypto-backend
+    container_name: crypto-backend
     depends_on:
       postgres:
         condition: service_healthy
@@ -38,9 +38,9 @@ services:
       PORT: 3000
       NODE_ENV: production
     ports:
-      - '3000:3000'
+      - "3000:3000"
     networks:
-      - able-crypto-network
+      - crypto-network
     restart: unless-stopped
 
   frontend:
@@ -49,19 +49,20 @@ services:
       dockerfile: apps/frontend/Dockerfile
       args:
         VITE_BACKEND_URL: http://localhost:3000
-    container_name: able-crypto-frontend
+    container_name: crypto-frontend
     depends_on:
       - backend
     ports:
-      - '5173:80'
+      - "5173:80"
     networks:
-      - able-crypto-network
+      - crypto-network
     restart: unless-stopped
 
 volumes:
   postgres_data:
+    driver: local
 
 networks:
-  able-crypto-network:
+  crypto-network:
     driver: bridge
 

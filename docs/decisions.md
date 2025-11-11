@@ -1,260 +1,161 @@
 # Technical Decisions
 
-This document outlines the key technical decisions made during the development of the Crypto Dashboard application and their motivations.
+This document records the key architectural and technical decisions made for the Crypto Dashboard project.
 
-## Architecture
+## 1. PostgreSQL Database
 
-### Monorepo Structure
+**Decision**: Use PostgreSQL as the primary database.
 
-**Decision**: Use npm/yarn workspaces for monorepo management
-
-**Motivation**:
-- Simple and native solution (no additional tooling required)
-- Easy dependency sharing between packages
-- Straightforward setup for a project of this scope
-- Tools like Turborepo or Nx would add unnecessary complexity for 2 apps + 1 shared package
-
-## Backend Stack
-
-### Database: PostgreSQL
-
-**Decision**: Use PostgreSQL with TypeORM
-
-**Motivation**:
-- **Time-series support**: Optimized for storing and querying time-based data (hourly averages)
-- **ACID compliance**: Ensures data consistency and integrity
-- **Aggregation queries**: Excellent performance for AVG, GROUP BY timestamp operations
+**Rationale**:
+- **Time-series optimization**: Native support for timestamp-based queries, essential for hourly averages
+- **ACID compliance**: Ensures data consistency for financial data
+- **TypeORM integration**: Excellent first-class support in NestJS ecosystem
+- **Aggregate functions**: Efficient `AVG()`, `GROUP BY` operations for calculating hourly rates
 - **JSON support**: Flexibility to add metadata if needed in the future
-- **Production-ready**: Battle-tested, reliable, widely supported
+- **Reliability**: Battle-tested, production-ready for financial applications
 
-### ORM: TypeORM
+**Trade-offs**:
+- Requires additional infrastructure (vs SQLite)
+- Slightly more complex setup
+- But: Better for production-like environment demonstration
 
-**Decision**: Use TypeORM instead of raw PostgreSQL queries
+---
 
-**Motivation**:
-- **Native NestJS integration**: Decorators, dependency injection, seamless setup
-- **Automatic migrations**: Easy schema evolution with `migration:generate`
-- **Type safety**: Entities are fully typed, reducing runtime errors
-- **Repository pattern**: Reduces boilerplate code
-- **Minimal overhead**: For simple queries (INSERT, SELECT, DELETE), performance impact is negligible
-- **Not scaling to millions**: Our use case doesn't require raw SQL optimization
+## 2. Chart.js for Data Visualization
 
-### Framework: NestJS
+**Decision**: Use Chart.js with react-chartjs-2 wrapper.
 
-**Decision**: Use NestJS for the backend
+**Rationale**:
+- **Most popular**: ~65k GitHub stars, largest community
+- **Mature and stable**: Well-tested, extensive documentation
+- **Streaming support**: Plugin available for real-time data updates
+- **React-friendly**: react-chartjs-2 provides declarative API
+- **Performance**: Adequate for 3 simultaneous charts with throttled updates
+- **Customizable**: Extensive options for styling and behavior
 
-**Motivation**:
-- **Required by exercise**: Specified in the technical requirements
-- **Production-ready**: Opinionated structure, dependency injection, modular architecture
-- **TypeScript-first**: Excellent type safety
-- **WebSocket support**: Native @nestjs/websockets module
-- **Scheduler support**: Built-in cron job functionality via @nestjs/schedule
+**Alternatives considered**:
+- Recharts: More React-native but weaker performance with streaming data
+- Lightweight Charts: Excellent for trading apps but overkill for this scope
 
-### Real-time Communication: WebSocket
+---
 
-**Decision**: Use WebSocket (not Server-Sent Events)
+## 3. 7-Day Data Retention
 
-**Motivation**:
-- **Bi-directional**: Although we only need server→client, WebSocket is more flexible
-- **Native NestJS support**: @nestjs/websockets module
-- **Industry standard**: More widely used and understood
-- **Better tooling**: socket.io has excellent client libraries
+**Decision**: Retain hourly averages for 7 days, then automatically delete.
 
-### Job Scheduling: @Cron Decorator
+**Rationale**:
+- **Evaluation period**: Sufficient for testing and demonstration
+- **Database size**: Keeps storage minimal (~504 records total at any time)
+- **Demonstrates feature**: Shows working cleanup automation
+- **Practical**: Matches expected evaluation timeline
 
-**Decision**: Use NestJS @Cron decorator for hourly averages calculation
+**Implementation**: Automatic cleanup via scheduled cron job.
 
-**Motivation**:
-- **Native integration**: Built into NestJS via @nestjs/schedule
-- **Simple syntax**: `@Cron('0 * * * *')` is clear and declarative
-- **Automatic lifecycle**: NestJS manages initialization and cleanup
-- **Battle-tested**: Uses node-cron under the hood
+---
 
-## Frontend Stack
+## 4. TypeORM as Database ORM
 
-### Framework: React
+**Decision**: Use TypeORM instead of raw SQL queries.
 
-**Decision**: Use React 18 with TypeScript
+**Rationale**:
+- **NestJS integration**: Native support with decorators and dependency injection
+- **Type-safety**: Entities are fully typed, reducing runtime errors
+- **Automatic migrations**: Schema evolution is managed and versioned
+- **Repository pattern**: Reduces boilerplate for CRUD operations
+- **Developer experience**: Faster development for simple queries
+- **Scope appropriate**: For this application's simple queries (INSERT, SELECT, DELETE), overhead is minimal
 
-**Motivation**:
-- **Required by exercise**: Specified in the technical requirements
-- **Industry standard**: Large community, extensive documentation
-- **Hooks**: Modern approach for state management
-- **TypeScript support**: Excellent type checking
+**Trade-offs**:
+- Slight abstraction overhead vs raw SQL
+- Additional dependencies
+- But: Benefits outweigh costs for this scope; we're not optimizing for millions of records
 
-### Build Tool: Vite
+---
 
-**Decision**: Use Vite instead of Create React App
+## 5. Docker Containerization
 
-**Motivation**:
-- **Fast**: Lightning-fast HMR (Hot Module Replacement)
-- **Modern**: Built for ESM, optimized for modern browsers
-- **Lightweight**: Minimal configuration needed
-- **Better DX**: Faster development experience
+**Decision**: Dockerize all services (PostgreSQL, backend, frontend).
 
-### Charts: Chart.js
-
-**Decision**: Use Chart.js with react-chartjs-2 wrapper
-
-**Motivation**:
-- **Most popular**: ~65k GitHub stars, huge community
-- **Mature**: Battle-tested, stable, well-documented
-- **Streaming support**: Plugin available for real-time updates
-- **React wrapper**: react-chartjs-2 provides declarative API
-- **Performance**: Good enough for 3 simultaneous charts with throttled updates
-- **Trade-offs considered**:
-  - Recharts: More React-idiomatic but potentially slower
-  - Lightweight Charts: Trading-specific but more complex for simple use case
-
-### Styling: TailwindCSS
-
-**Decision**: Use TailwindCSS for styling
-
-**Motivation**:
-- **Utility-first**: Fast development without leaving HTML
-- **Consistency**: Design system built-in
-- **Small bundle**: Purges unused styles in production
-- **Responsive**: Mobile-first, easy breakpoints
-
-## Data Management
-
-### Data Retention: 7 Days
-
-**Decision**: Keep only 7 days of hourly averages
-
-**Motivation**:
-- **Evaluation period**: Application will be tested within 1 week
-- **Lightweight**: ~504 total records (3 pairs × 24 hours × 7 days)
-- **Demonstrates functionality**: Proves hourly calculation works
-- **Easy to adjust**: Can be increased if needed
-
-### Update Frequency: 1 Second Throttle
-
-**Decision**: Throttle frontend updates to maximum 1 per second per pair
-
-**Motivation**:
-- **Balance**: Real-time feel without overwhelming the UI
-- **Performance**: Chart.js handles 1 update/second smoothly
-- **Network efficiency**: Reduces WebSocket traffic
-- **UX**: Human eye doesn't perceive updates faster than ~30 FPS anyway
-
-## DevOps
-
-### Containerization: Docker
-
-**Decision**: Use Docker Compose for local development and deployment
-
-**Motivation**:
-- **Consistency**: Same environment across dev/test/production
-- **Easy setup**: Single command (`docker-compose up`) starts everything
-- **Isolation**: PostgreSQL, backend, frontend all containerized
-- **No local dependencies**: No need to install PostgreSQL locally
-- **Production-ready**: Easy to deploy to any Docker-compatible host
-
-### Testing Strategy
-
-**Decision**: Jest for backend, React Testing Library for frontend
-
-**Motivation**:
-- **Native support**: Jest works seamlessly with NestJS and React
-- **RTL philosophy**: Testing from user perspective
-- **Mocking**: Easy to mock WebSocket connections and database
-- **Coverage**: Good balance between confidence and development speed
-
-## Performance Optimizations
-
-### Throttling Strategy
-
-**Decision**: Implement throttling at multiple levels
+**Rationale**:
+- **Consistent environment**: Guarantees same behavior across development and evaluation
+- **Simplified setup**: Single `docker-compose up` command starts everything
+- **Dependency isolation**: No need to install PostgreSQL, Node.js, etc. locally
+- **Production-ready**: Demonstrates understanding of modern deployment practices
+- **Evaluator-friendly**: Reduces setup friction for code reviewers
 
 **Implementation**:
-1. **Backend**: Throttle broadcasts to frontend (1/second per pair)
-2. **Frontend**: React state updates naturally batched
-3. **Chart**: Limit visible data points to last 50
+- Multi-stage builds for optimized image sizes
+- Health checks for service dependencies
+- Volume persistence for database data
 
-**Motivation**:
-- **Prevent overload**: Finnhub sends 5-20 trades/second during high activity
-- **Smooth UX**: Consistent update rate feels better than erratic updates
-- **Resource efficiency**: Reduces CPU/memory usage
+---
 
-### Database Indexing
+## 6. WebSocket for Real-time Communication
 
-**Decision**: Add composite index on (symbol, hour)
+**Decision**: Use WebSocket (not polling or SSE) for both Finnhub connection and frontend communication.
 
-**Motivation**:
-- **Query optimization**: Main query filters by symbol and time range
-- **Small overhead**: Few records, index maintenance is cheap
-- **Cleanup efficiency**: Helps DELETE queries for old data
+**Rationale**:
+- **Bidirectional**: Supports future features like commands from frontend
+- **Efficient**: Single persistent connection vs repeated HTTP requests
+- **Low latency**: Near-instant data propagation
+- **Standard protocol**: Well-supported in browsers and NestJS
+- **Finnhub requirement**: WebSocket API is the recommended approach
 
-## Security Considerations
+**vs. Polling**: Would create unnecessary server load and higher latency  
+**vs. SSE**: Unidirectional, less flexible for future enhancements
 
-### API Key Management
+---
 
-**Decision**: Store Finnhub API key in environment variables
+## 7. Throttling Strategy
 
-**Motivation**:
-- **Security**: Never commit secrets to git
-- **Flexibility**: Easy to change per environment
-- **.env.example**: Template provided for easy setup
+**Decision**: Throttle updates to maximum 1 per second per currency pair.
 
-### CORS Configuration
+**Rationale**:
+- **Bandwidth optimization**: Reduces data transfer without losing real-time feel
+- **Performance**: Prevents UI freezing from too frequent re-renders
+- **User experience**: 1 update/second is smooth for financial dashboards
+- **Backend efficiency**: Reduces WebSocket broadcast frequency
 
-**Decision**: Configure CORS in NestJS to allow frontend origin
+**Implementation**: Lodash throttle utility or custom implementation with timestamps.
 
-**Motivation**:
-- **Development**: Allow localhost:5173 (Vite default)
-- **Production**: Can be restricted to specific domain
-- **WebSocket**: Needs proper origin configuration
+---
 
-## Code Quality
+## 8. Monorepo with npm Workspaces
 
-### TypeScript Strict Mode
+**Decision**: Use npm/yarn workspaces (not Turborepo or Nx).
 
-**Decision**: Enable strict mode in both backend and frontend
+**Rationale**:
+- **Simplicity**: Native npm feature, no additional tooling
+- **Sufficient**: Meets all requirements for shared types and dependencies
+- **No build cache needed**: Application is small enough
+- **Learning curve**: Zero overhead, familiar to most developers
 
-**Motivation**:
-- **Type safety**: Catch errors at compile time
-- **Better IDE support**: Improved autocomplete and refactoring
-- **Documentation**: Types serve as inline documentation
+**vs. Turborepo/Nx**: Overkill for 2 apps and 1 shared package
 
-### Clean Code Principles
+---
 
-**Followed principles**:
-- **DRY**: Shared types in `@able-crypto/shared` package
-- **Single Responsibility**: Each service/component has one job
-- **Separation of Concerns**: Clear layers (service, gateway, entity)
-- **KISS**: Simple solutions over complex abstractions
+## 9. NestJS @Cron for Scheduled Tasks
 
-## Trade-offs and Alternatives Not Chosen
+**Decision**: Use NestJS @Cron decorators (from @nestjs/schedule).
 
-### What We Didn't Use (And Why)
+**Rationale**:
+- **Native integration**: Part of NestJS ecosystem
+- **Declarative syntax**: Clean, readable code
+- **Type-safe**: Full TypeScript support
+- **Testable**: Easy to mock and test scheduled jobs
+- **No external daemon**: Runs in-process, simplifies deployment
 
-**requestAnimationFrame (RAF)**:
-- ❌ Not needed: Chart.js handles rendering optimization internally
-- ✅ Simpler: React state updates + Chart.js is sufficient
+**Alternative**: node-cron library directly - more manual setup, less idiomatic
 
-**Debounce**:
-- ❌ Not ideal: Would delay updates inconsistently
-- ✅ Throttle better: Guarantees consistent update frequency
+---
 
-**Raw PostgreSQL (pg library)**:
-- ✅ Would work: More control, lighter weight
-- ❌ More boilerplate: Manual migrations, less type safety
-- ❌ Less idiomatic: TypeORM is NestJS standard
-
-**Server-Sent Events (SSE)**:
-- ✅ Would work: Simpler for one-way communication
-- ❌ Less flexible: Can't send messages from client if needed
-- ❌ Less common: WebSocket is more widely known
-
-## Conclusion
+## Summary
 
 These decisions prioritize:
-1. **Simplicity**: Use standard tools, avoid over-engineering
-2. **Best practices**: Follow framework conventions (NestJS, React)
-3. **Maintainability**: Clear separation, strong typing, good documentation
-4. **Requirements**: Fulfill all exercise requirements without gold-plating
-5. **Time-boxing**: 3-4 hour implementation window
+- ✅ **Clean, maintainable code** over premature optimization
+- ✅ **Developer experience** with familiar, well-documented tools
+- ✅ **Production-ready practices** (Docker, TypeORM, error handling)
+- ✅ **Appropriate complexity** for a 3-4 hour take-home exercise
 
-All decisions can be revisited if requirements change or scale demands it.
+
 
