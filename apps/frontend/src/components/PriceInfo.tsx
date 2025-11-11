@@ -19,9 +19,15 @@ export const PriceInfo = ({
         <span className="text-muted-foreground text-sm font-sans">
           Current Price
         </span>
-        <span className="text-3xl font-serif font-semibold text-foreground">
-          ${formatPrice(currentPrice, decimals)}
-        </span>
+        {currentPrice > 0 ? (
+          <span className="text-3xl font-serif font-semibold text-foreground">
+            ${formatPrice(currentPrice, decimals)}
+          </span>
+        ) : (
+          <span className="text-base font-sans text-muted-foreground italic">
+            Waiting for first trade...
+          </span>
+        )}
       </div>
       
       <div className="flex justify-between items-baseline">
