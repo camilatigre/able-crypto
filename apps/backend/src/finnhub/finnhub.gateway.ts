@@ -84,7 +84,7 @@ export class FinnhubGateway
         hour: new Date().toISOString(),
       };
 
-      this.server.emit('hourly-average', data);
+      this.server.emit('hourly:average', data);
       this.logger.log(`Broadcast initial average for ${symbol}: ${averagePrice}`);
     } catch (error) {
       this.logger.error('Failed to broadcast initial average:', error.message);
