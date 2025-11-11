@@ -40,7 +40,7 @@ export const PriceInfo = ({
           </span>
         ) : (
           <span className="text-xs font-sans text-muted-foreground italic">
-            Calculating first average...
+            Calculating average...
           </span>
         )}
       </div>
