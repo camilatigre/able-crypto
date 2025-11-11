@@ -34,7 +34,7 @@ export class RatesService {
     if (!this.priceBuffer.has(symbol)) {
       this.priceBuffer.set(symbol, []);
     }
-    this.priceBuffer.get(symbol).push({ price, timestamp });
+    this.priceBuffer.get(symbol)!.push({ price, timestamp });
   }
 
   /**
