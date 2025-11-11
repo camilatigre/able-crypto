@@ -149,6 +149,42 @@ This document records the key architectural and technical decisions made for the
 
 ---
 
+## 10. Single Buffer vs Multiple Time Buckets
+
+**Decision**: Use a single in-memory buffer for all incoming trades, cleared after successful hourly save.
+
+**Rationale**:
+- **Simplicity**: Single `Map<symbol, PriceData[]>` is straightforward
+- **Sufficient for exercise**: Demonstrates understanding without over-engineering
+- **Graceful degradation**: On database failure, retains data for retry (though mixed with next hour's data)
+
+**Trade-offs**:
+- ✅ Simple implementation and testing
+- ✅ Automatic retry on failure (keeps data in buffer)
+- ❌ **Imperfect retry**: Failed hour's data gets mixed with next hour's data in the average
+- ❌ **Memory leak potential**: If database never recovers, buffer grows indefinitely
+- ❌ **Data loss on restart**: Buffer is in RAM, lost on application restart
+
+**Alternative considered - Multiple Time Buckets**:
+```typescript
+// Not implemented (over-engineering for this scope)
+priceBuffer: Map<string, Map<hourTimestamp, PriceData[]>>
+// Would maintain separate buckets per hour, enabling:
+// - Clean retry (save specific hour independently)
+// - Better data integrity
+// - Controlled memory (drop old buckets after N retries)
+```
+
+**Why not implemented**: Adds significant complexity for marginal benefit in a take-home exercise. The simpler approach demonstrates core concepts while remaining production-viable for temporary failures.
+
+**Buffer lifecycle**:
+- **Normal operation**: Data stays in memory max ~55 minutes (until next hour's cron)
+- **Database failure**: Data accumulates until successful save (retry on next cron)
+- **Application restart**: All buffer data is lost (in-memory only)
+- **Memory management**: No max size limit (assumes database recovers quickly)
+
+---
+
 ## Summary
 
 These decisions prioritize:
