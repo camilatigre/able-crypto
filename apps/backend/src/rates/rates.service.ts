@@ -29,12 +29,39 @@ export class RatesService {
 
   /**
    * Store incoming price data in memory buffer
+   * Calculates and broadcasts initial average after first 10 trades
    */
   addPrice(symbol: string, price: number, timestamp: number) {
     if (!this.priceBuffer.has(symbol)) {
       this.priceBuffer.set(symbol, []);
     }
-    this.priceBuffer.get(symbol)!.push({ price, timestamp });
+    const buffer = this.priceBuffer.get(symbol)!;
+    buffer.push({ price, timestamp });
+
+    // Calculate and broadcast initial average after 10 trades
+    if (buffer.length === 10) {
+      this.calculateInitialAverage(symbol);
+    }
+  }
+
+  /**
+   * Calculate initial average from first trades (for immediate UX feedback)
+   */
+  private calculateInitialAverage(symbol: string) {
+    const prices = this.priceBuffer.get(symbol);
+    if (!prices || prices.length === 0) return;
+
+    const sum = prices.reduce((acc, p) => acc + p.price, 0);
+    const average = sum / prices.length;
+
+    this.logger.log(
+      `Initial average for ${symbol}: ${average.toFixed(8)} (${prices.length} samples)`,
+    );
+
+    // Broadcast to frontend immediately
+    if (this.gateway) {
+      this.gateway.broadcastInitialAverage(symbol, average);
+    }
   }
 
   /**

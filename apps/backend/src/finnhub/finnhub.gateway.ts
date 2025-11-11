@@ -74,6 +74,24 @@ export class FinnhubGateway
   }
 
   /**
+   * Broadcast initial average (from first trades) to all connected clients
+   */
+  broadcastInitialAverage(symbol: string, averagePrice: number) {
+    try {
+      const data: HourlyAverage = {
+        symbol,
+        averagePrice,
+        hour: new Date().toISOString(),
+      };
+
+      this.server.emit('hourly-average', data);
+      this.logger.log(`Broadcast initial average for ${symbol}: ${averagePrice}`);
+    } catch (error) {
+      this.logger.error('Failed to broadcast initial average:', error.message);
+    }
+  }
+
+  /**
    * Broadcast hourly average to all connected clients
    */
   async broadcastHourlyAverage(symbol: string) {
