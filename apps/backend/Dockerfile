@@ -8,6 +8,7 @@ COPY package*.json ./
 
 # Copy backend and shared package files
 COPY apps/backend/package*.json ./apps/backend/
+COPY packages/shared ./packages/shared
 
 # Install all dependencies
 RUN npm ci

@@ -1,6 +1,6 @@
 import { Injectable, Logger, OnModuleInit, OnModuleDestroy, Inject, forwardRef } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import * as WebSocket from 'ws';
+import WebSocket from 'ws';
 import { RatesService } from '../rates/rates.service';
 import { FinnhubGateway } from './finnhub.gateway';
 
@@ -69,12 +69,12 @@ export class FinnhubService implements OnModuleInit, OnModuleDestroy {
     try {
       this.ws = new WebSocket(url);
 
-      this.ws.on('open', () => this.handleOpen());
-      this.ws.on('message', (data: WebSocket.Data) => this.handleMessage(data));
-      this.ws.on('error', (error: Error) => this.handleError(error));
-      this.ws.on('close', () => this.handleClose());
+      this.ws!.on('open', () => this.handleOpen());
+      this.ws!.on('message', (data: WebSocket.Data) => this.handleMessage(data));
+      this.ws!.on('error', (error: Error) => this.handleError(error));
+      this.ws!.on('close', () => this.handleClose());
     } catch (error) {
-      this.logger.error('Failed to create WebSocket connection:', error.message);
+      this.logger.error('Failed to create WebSocket connection:', (error as Error).message);
       this.isConnecting = false;
       this.scheduleReconnect();
     }
