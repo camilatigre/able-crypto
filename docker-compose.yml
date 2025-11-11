@@ -34,7 +34,7 @@ services:
       DATABASE_USER: postgres
       DATABASE_PASSWORD: postgres
       DATABASE_NAME: crypto_dashboard
-      FINNHUB_API_KEY: ${FINNHUB_API_KEY:-d498dthr01qshn3l4bdgd498dthr01qshn3l4be0}
+      FINNHUB_API_KEY: ${FINNHUB_API_KEY}
       PORT: 3000
       NODE_ENV: production
     ports:

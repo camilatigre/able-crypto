@@ -24,6 +24,8 @@ A real-time cryptocurrency dashboard that displays live exchange rates for ETH/U
 - Docker and Docker Compose installed
 - Finnhub API key (get one free at [finnhub.io](https://finnhub.io/register))
 
+**Important:** You must provide your own Finnhub API key. The key should be sent separately for security reasons.
+
 ### Run the Application
 
 ```bash
@@ -31,7 +33,11 @@ A real-time cryptocurrency dashboard that displays live exchange rates for ETH/U
 git clone https://github.com/camilatigre/able-crypto.git
 cd able-crypto
 
-# Set your Finnhub API key (or use default in docker-compose.yml)
+# Create .env file with your Finnhub API key
+cp env.example .env
+# Edit .env and add your FINNHUB_API_KEY
+
+# OR set as environment variable
 export FINNHUB_API_KEY=your_api_key_here
 
 # Start all services
@@ -65,10 +71,10 @@ npm install
 
 2. **Start PostgreSQL** (make sure it's running on port 5432)
 
-3. **Configure backend**:
+3. **Configure environment variables**:
 ```bash
-cd apps/backend
-cp .env.example .env
+# Copy example file
+cp env.example .env
 # Edit .env and add your FINNHUB_API_KEY
 ```
 
