@@ -49,6 +49,57 @@ The application will be available at:
 docker-compose down
 ```
 
+## Local Development (without Docker)
+
+### Prerequisites
+- Node.js 18+
+- PostgreSQL 15+
+- Finnhub API Key
+
+### Setup
+
+1. **Install dependencies**:
+```bash
+npm install
+```
+
+2. **Start PostgreSQL** (make sure it's running on port 5432)
+
+3. **Configure backend**:
+```bash
+cd apps/backend
+cp .env.example .env
+# Edit .env and add your FINNHUB_API_KEY
+```
+
+4. **Start backend**:
+```bash
+cd apps/backend
+npm install
+npm run start:dev
+```
+Backend runs at http://localhost:3000
+
+5. **Start frontend** (in a new terminal):
+```bash
+cd apps/frontend  
+npm install
+npm run dev
+```
+Frontend runs at http://localhost:5173
+
+### Run Tests
+
+```bash
+# Backend tests
+cd apps/backend
+npm test
+
+# Frontend tests
+cd apps/frontend
+npm test
+```
+
 ## Architecture
 
 ```

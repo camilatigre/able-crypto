@@ -28,18 +28,64 @@ This document records the key architectural and technical decisions made for the
 **Rationale**:
 - **Most popular**: ~65k GitHub stars, largest community
 - **Mature and stable**: Well-tested, extensive documentation
-- **Streaming support**: Plugin available for real-time data updates
+- **Performance**: Canvas-based rendering, better for real-time streaming
 - **React-friendly**: react-chartjs-2 provides declarative API
-- **Performance**: Adequate for 3 simultaneous charts with throttled updates
-- **Customizable**: Extensive options for styling and behavior
+- **Fine-grained control**: Imperative updates via refs for optimized real-time rendering
+- **Adequate for 3 simultaneous charts** with throttled updates (1/sec)
+
+**Implementation Details**:
+- Configuration extracted to `chart-config.ts` for reusability
+- Chart wrapped in `PriceChart` component following Single Responsibility Principle
+- Update mode set to 'none' for smooth real-time feel without animation lag
 
 **Alternatives considered**:
-- Recharts: More React-native but weaker performance with streaming data
+- Recharts: More React-native but slower canvas-less rendering
 - Lightweight Charts: Excellent for trading apps but overkill for this scope
 
 ---
 
-## 3. 7-Day Data Retention
+## 3. Component Architecture & Separation of Concerns
+
+**Decision**: Break down components following Atomic Design and Single Responsibility Principle.
+
+**Rationale**:
+- **Maintainability**: Each component has one clear purpose
+- **Testability**: Small, focused units are easier to test in isolation
+- **Reusability**: Generic components can be composed in different contexts
+- **Readability**: Clear component hierarchy and data flow
+
+**Implementation**:
+
+```
+PriceCard (Organism - Container)
+├── PriceChange (Atom)         → Display trend indicator
+├── PriceInfo (Molecule)       → Display price metrics
+└── PriceChart (Molecule)      → Render Chart.js with config
+    └── chart-config.ts        → Centralized Chart.js options
+```
+
+**Best Practices Applied**:
+1. **Container/Presentational Pattern**: `PriceCard` orchestrates, children present
+2. **Props Drilling Minimized**: Each component receives only what it needs
+3. **Logic Extraction**: Chart configuration in separate file, not inline
+4. **Pure Functions**: Calculations (decimals, isPositive) kept simple and pure
+5. **Type Safety**: All components have explicit TypeScript interfaces
+
+**Before** (Monolithic):
+- ❌ 109 lines in one component
+- ❌ Mixed concerns (data, presentation, config)
+- ❌ Hard to test chart logic separately
+- ❌ Difficult to reuse parts
+
+**After** (Modular):
+- ✅ 4 focused components (~20-50 lines each)
+- ✅ Clear separation of concerns
+- ✅ Each part testable independently
+- ✅ Components reusable across the app
+
+---
+
+## 4. 7-Day Data Retention
 
 **Decision**: Retain hourly averages for 7 days, then automatically delete.
 
@@ -53,7 +99,7 @@ This document records the key architectural and technical decisions made for the
 
 ---
 
-## 4. TypeORM as Database ORM
+## 5. TypeORM as Database ORM
 
 **Decision**: Use TypeORM instead of raw SQL queries.
 
@@ -72,7 +118,7 @@ This document records the key architectural and technical decisions made for the
 
 ---
 
-## 5. Docker Containerization
+## 6. Docker Containerization
 
 **Decision**: Dockerize all services (PostgreSQL, backend, frontend).
 
@@ -90,7 +136,7 @@ This document records the key architectural and technical decisions made for the
 
 ---
 
-## 6. WebSocket for Real-time Communication
+## 7. WebSocket for Real-time Communication
 
 **Decision**: Use WebSocket (not polling or SSE) for both Finnhub connection and frontend communication.
 
@@ -106,7 +152,7 @@ This document records the key architectural and technical decisions made for the
 
 ---
 
-## 7. Throttling Strategy
+## 8. Throttling Strategy
 
 **Decision**: Throttle updates to maximum 1 per second per currency pair.
 
@@ -120,7 +166,7 @@ This document records the key architectural and technical decisions made for the
 
 ---
 
-## 8. Monorepo with npm Workspaces
+## 9. Monorepo with npm Workspaces
 
 **Decision**: Use npm/yarn workspaces (not Turborepo or Nx).
 
@@ -134,7 +180,7 @@ This document records the key architectural and technical decisions made for the
 
 ---
 
-## 9. NestJS @Cron for Scheduled Tasks
+## 10. NestJS @Cron for Scheduled Tasks
 
 **Decision**: Use NestJS @Cron decorators (from @nestjs/schedule).
 
@@ -149,7 +195,7 @@ This document records the key architectural and technical decisions made for the
 
 ---
 
-## 10. Single Buffer vs Multiple Time Buckets
+## 11. Single Buffer vs Multiple Time Buckets
 
 **Decision**: Use a single in-memory buffer for all incoming trades, cleared after successful hourly save.
 
