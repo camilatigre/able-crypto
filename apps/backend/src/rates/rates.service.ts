@@ -65,6 +65,17 @@ export class RatesService {
   }
 
   /**
+   * Get current average from buffer (for initial data on reconnect)
+   */
+  getCurrentAverage(symbol: string): number | null {
+    const prices = this.priceBuffer.get(symbol);
+    if (!prices || prices.length === 0) return null;
+
+    const sum = prices.reduce((acc, p) => acc + p.price, 0);
+    return sum / prices.length;
+  }
+
+  /**
    * Calculate and persist hourly averages
    * Runs every hour at minute 0
    */

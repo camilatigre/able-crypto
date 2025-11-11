@@ -116,12 +116,14 @@ export class FinnhubGateway
 
   /**
    * Send initial data when client connects
+   * Includes both historical data from DB and current buffer average
    */
   private async sendInitialData(client: Socket) {
     try {
       const symbols = ['BINANCE:ETHUSDC', 'BINANCE:ETHUSDT', 'BINANCE:ETHBTC'];
       
       for (const symbol of symbols) {
+        // Send historical averages from database
         const averages = await this.ratesService.getRecentAverages(symbol, 24);
         
         if (averages.length > 0) {
@@ -132,6 +134,17 @@ export class FinnhubGateway
           }));
 
           client.emit('initial:data', { symbol, averages: data });
+        }
+
+        // Send current average from buffer (if exists)
+        const currentAverage = this.ratesService.getCurrentAverage(symbol);
+        if (currentAverage !== null) {
+          const data: HourlyAverage = {
+            symbol,
+            averagePrice: currentAverage,
+            hour: new Date().toISOString(),
+          };
+          client.emit('hourly:average', data);
         }
       }
 
