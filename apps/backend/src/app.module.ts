@@ -4,6 +4,7 @@ import { ScheduleModule } from '@nestjs/schedule';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { DatabaseModule } from './database/database.module';
 import { RatesModule } from './rates/rates.module';
+import { FinnhubModule } from './finnhub/finnhub.module';
 
 @Module({
   imports: [
@@ -27,6 +28,7 @@ import { RatesModule } from './rates/rates.module';
     }),
     DatabaseModule,
     RatesModule,
+    FinnhubModule,
   ],
 })
 export class AppModule {}
