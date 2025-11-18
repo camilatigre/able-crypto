@@ -1,5 +1,31 @@
 import { Module } from '@nestjs/common';
+import { TypeOrmModule } from '@nestjs/typeorm';
+import { ConfigModule, ConfigService } from '@nestjs/config';
 
-@Module({})
+/**
+ * DatabaseModule
+ *
+ * Configures TypeORM connection to PostgreSQL database.
+ * Centralizes all database configuration in a single module.
+ */
+@Module({
+  imports: [
+    TypeOrmModule.forRootAsync({
+      imports: [ConfigModule],
+      inject: [ConfigService],
+      useFactory: (configService: ConfigService) => ({
+        type: 'postgres' as const,
+        host: configService.get<string>('DATABASE_HOST', 'localhost'),
+        port: configService.get<number>('DATABASE_PORT', 5432),
+        username: configService.get<string>('DATABASE_USER', 'postgres'),
+        password: configService.get<string>('DATABASE_PASSWORD', 'postgres'),
+        database: configService.get<string>('DATABASE_NAME', 'crypto_dashboard'),
+        entities: [__dirname + '/../**/*.entity{.ts,.js}'],
+        synchronize: configService.get<string>('NODE_ENV') === 'development',
+        logging: configService.get<string>('NODE_ENV') === 'development',
+      }),
+    }),
+  ],
+})
 export class DatabaseModule {}
 
