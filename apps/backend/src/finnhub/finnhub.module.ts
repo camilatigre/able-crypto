@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { FinnhubService } from './finnhub.service';
 import { FinnhubGateway } from './finnhub.gateway';
+import { WebSocketClient } from './websocket-client.service';
 import { RatesModule } from '../rates/rates.module';
 import { RatesService } from '../rates/rates.service';
 
@@ -9,6 +10,7 @@ import { RatesService } from '../rates/rates.service';
   providers: [
     FinnhubService,
     FinnhubGateway,
+    WebSocketClient,
     {
       provide: 'GATEWAY_SETUP',
       useFactory: (ratesService: RatesService, gateway: FinnhubGateway) => {
