@@ -1,112 +1,92 @@
-import { Injectable, Logger, Inject, forwardRef } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, LessThan } from 'typeorm';
+import { Injectable, Logger } from '@nestjs/common';
 import { Cron } from '@nestjs/schedule';
 import { HourlyRate } from './rate.entity';
+import { RatesRepository } from './rates.repository';
+import { BufferManager } from './buffer-manager.service';
+import { RateCalculator } from './rate-calculator.service';
 
-interface PriceData {
-  price: number;
-  timestamp: number;
-}
-
+/**
+ * RatesService
+ *
+ * Orchestrates rate processing workflow:
+ * - Coordinates buffer management, calculation, and persistence
+ * - Schedules hourly average calculations
+ * - Manages data cleanup
+ */
 @Injectable()
 export class RatesService {
   private readonly logger = new Logger(RatesService.name);
-  private priceBuffer: Map<string, PriceData[]> = new Map();
-  private gateway: any = null; // Will be set by setGateway to avoid circular dependency
-  private initialAverageSent: Set<string> = new Set(); // Track which symbols already sent initial average
-  private initialTimers: Map<string, NodeJS.Timeout> = new Map(); // Timers for initial average calculation
+  private gateway: any = null;
 
   constructor(
-    @InjectRepository(HourlyRate)
-    private readonly ratesRepository: Repository<HourlyRate>,
+    private readonly repository: RatesRepository,
+    private readonly bufferManager: BufferManager,
+    private readonly calculator: RateCalculator,
   ) {}
 
   /**
-   * Set gateway reference (called from FinnhubModule)
+   * Set gateway reference for broadcasting
    */
   setGateway(gateway: any) {
     this.gateway = gateway;
   }
 
   /**
-   * Store incoming price data in memory buffer
-   * Schedules initial average calculation after first batch of trades
+   * Add price to buffer and schedule initial average if needed
    */
   addPrice(symbol: string, price: number, timestamp: number) {
-    const isFirstTrade = !this.priceBuffer.has(symbol);
-    
+    const isFirstTrade = this.bufferManager.addPrice(symbol, price, timestamp);
+
     if (isFirstTrade) {
-      this.priceBuffer.set(symbol, []);
-      
-      // Schedule initial average calculation after 2 seconds
-      // This allows collecting the first batch of trades (1-N)
-      const timer = setTimeout(() => {
-        if (!this.initialAverageSent.has(symbol)) {
-          this.broadcastCurrentAverage(symbol);
-          this.initialAverageSent.add(symbol);
-          this.initialTimers.delete(symbol);
-        }
-      }, 2000);
-      
-      this.initialTimers.set(symbol, timer);
+      this.bufferManager.scheduleInitialAverage(symbol, () => {
+        this.broadcastCurrentAverage(symbol);
+      });
     }
-    
-    const buffer = this.priceBuffer.get(symbol)!;
-    buffer.push({ price, timestamp });
   }
 
   /**
-   * Broadcast current average to frontend
-   * Called after initial batch and then hourly
+   * Broadcast current average from buffer
    */
   private broadcastCurrentAverage(symbol: string) {
-    const prices = this.priceBuffer.get(symbol);
-    if (!prices || prices.length === 0) return;
+    const average = this.bufferManager.getAverage(symbol);
+    if (average === null) return;
 
-    const sum = prices.reduce((acc, p) => acc + p.price, 0);
-    const average = sum / prices.length;
-
+    const prices = this.bufferManager.getPrices(symbol);
     this.logger.log(
-      `Broadcasting average for ${symbol}: ${average.toFixed(8)} (${prices.length} samples)`,
+      `Broadcasting average for ${symbol}: ${average.toFixed(8)} (${prices?.length || 0} samples)`,
     );
 
-    // Broadcast to frontend
     if (this.gateway) {
       this.gateway.broadcastInitialAverage(symbol, average);
     }
   }
 
   /**
-   * Get current average from buffer (for initial data on reconnect)
+   * Get current average from buffer
    */
   getCurrentAverage(symbol: string): number | null {
-    const prices = this.priceBuffer.get(symbol);
-    if (!prices || prices.length === 0) return null;
-
-    const sum = prices.reduce((acc, p) => acc + p.price, 0);
-    return sum / prices.length;
+    return this.bufferManager.getAverage(symbol);
   }
 
   /**
-   * Calculate and persist hourly averages
-   * Runs every hour at minute 0
+   * Calculate and persist hourly averages (runs every hour)
    */
   @Cron('0 * * * *')
   async calculateHourlyAverages() {
     this.logger.log('Calculating hourly averages...');
     const successfulSymbols: string[] = [];
 
-    for (const [symbol, prices] of this.priceBuffer.entries()) {
-      if (prices.length === 0) continue;
+    for (const symbol of this.bufferManager.getAllSymbols()) {
+      const prices = this.bufferManager.getPrices(symbol);
+      if (!prices || prices.length === 0) continue;
 
-      const sum = prices.reduce((acc, p) => acc + p.price, 0);
-      const average = sum / prices.length;
-      const hour = new Date();
-      hour.setMinutes(0, 0, 0); // Round to the hour
+      const average = this.calculator.calculateAverage(prices);
+      if (average === null) continue;
+
+      const hour = this.calculator.roundToHour(new Date());
 
       try {
-        await this.ratesRepository.save({
+        await this.repository.save({
           symbol,
           averagePrice: average,
           hour,
@@ -117,7 +97,6 @@ export class RatesService {
           `Saved hourly average for ${symbol}: ${average.toFixed(8)} (${prices.length} samples)`,
         );
 
-        // Broadcast hourly average to frontend clients
         if (this.gateway) {
           await this.gateway.broadcastHourlyAverage(symbol);
         }
@@ -126,39 +105,26 @@ export class RatesService {
       }
     }
 
-    // Clear buffer only for successfully saved symbols
-    successfulSymbols.forEach((symbol) => this.priceBuffer.delete(symbol));
+    successfulSymbols.forEach((symbol) => this.bufferManager.clear(symbol));
   }
 
   /**
    * Get recent hourly averages for a symbol
    */
   async getRecentAverages(symbol: string, hours: number = 24): Promise<HourlyRate[]> {
-    const since = new Date();
-    since.setHours(since.getHours() - hours);
-
-    return this.ratesRepository.find({
-      where: { symbol },
-      order: { hour: 'DESC' },
-      take: hours,
-    });
+    return this.repository.findRecent(symbol, hours);
   }
 
   /**
-   * Cleanup old data (older than 7 days)
-   * Runs daily at midnight
+   * Cleanup old data (runs daily at midnight)
    */
   @Cron('0 0 * * *')
   async cleanupOldData() {
-    const sevenDaysAgo = new Date();
-    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+    const sevenDaysAgo = this.calculator.getDaysAgo(7);
 
     try {
-      const result = await this.ratesRepository.delete({
-        hour: LessThan(sevenDaysAgo),
-      });
-
-      this.logger.log(`Cleaned up old data: ${result.affected} records deleted`);
+      const deletedCount = await this.repository.deleteOlderThan(sevenDaysAgo);
+      this.logger.log(`Cleaned up old data: ${deletedCount} records deleted`);
     } catch (error) {
       this.logger.error('Failed to cleanup old data:', error.message);
     }
